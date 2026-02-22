@@ -18,9 +18,14 @@ Suppose your team uses Linux and Windows machines behind a firewall. Alice uses 
 ### Install
 
 ```bash
-pip install jabberwocky
-# or
-uv tool install jabberwocky
+git clone josephcbradley/jabberwocky
+cd jabberwocky
+```
+
+To get started right away, you can run: 
+
+```bash
+uv run python -m jabberwocky build --config example.toml
 ```
 
 ### 1. Create a package wishlist
