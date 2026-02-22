@@ -18,10 +18,13 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+
+from .pypi import reconstruct_package_from_wheel
 
 log = logging.getLogger(__name__)
 
@@ -299,7 +302,38 @@ def run_update(
         async def _run():
             resolved = await resolve_fn(cfg)
             await download_fn(resolved, staging, cfg.python_versions, cfg.platforms)
-            build_index_fn(resolved, staging)
+
+            # --- Merge Logic: Preserve old versions ---
+            files_dir = staging / "files"
+            files_dir.mkdir(parents=True, exist_ok=True)
+            existing_files = list((mirror_dir / "files").glob("*.whl"))
+
+            # Track wheels covered by the new resolution
+            known_wheels = {
+                w.filename
+                for pkg in resolved.values()
+                if pkg.needs_wheels
+                for w in pkg.release.wheels
+            }
+
+            all_pkgs = list(resolved.values())
+
+            for path in existing_files:
+                dest = files_dir / path.name
+                if not dest.exists():
+                    # Link or copy to staging to preserve the file
+                    try:
+                        os.link(path, dest)
+                    except OSError:
+                        shutil.copy2(path, dest)
+
+                if path.name not in known_wheels:
+                    # This is an old version; reconstruct a package object for indexing
+                    pkg = reconstruct_package_from_wheel(dest)
+                    if pkg:
+                        all_pkgs.append(pkg)
+
+            build_index_fn(all_pkgs, staging)
             return resolved
 
         resolved = asyncio.run(_run())

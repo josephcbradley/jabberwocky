@@ -384,3 +384,25 @@ def _extract_pin(req: Requirement) -> str | None:
         if spec.operator in ("==",):
             return spec.version
     return None
+
+
+def reconstruct_package_from_wheel(wheel_path: Path) -> ResolvedPackage | None:
+    """Create a ResolvedPackage from a local wheel file."""
+    wf = _parse_wheel_filename(wheel_path.name)
+    if not wf:
+        return None
+
+    m = _WHEEL_RE.match(wheel_path.name)
+    if not m:
+        return None
+
+    name = canonicalize_name(m.group("name"))
+    version = m.group("ver")
+
+    # URL and sha256 not needed here; build_index will compute hash from file
+    return ResolvedPackage(
+        name=name,
+        version=version,
+        release=PackageRelease(name=name, version=version, wheels=[wf]),
+        needs_wheels=True,
+    )

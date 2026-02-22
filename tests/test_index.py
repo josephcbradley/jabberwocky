@@ -173,3 +173,22 @@ class TestBuildIndex:
         build_index({}, tmp_path)
         data = json.loads((tmp_path / "simple" / "index.json").read_text())
         assert data["projects"] == []
+
+    def test_merges_multiple_versions(self, tmp_path: Path):
+        # Two versions of the same package
+        pkg_v1 = _make_resolved("pkg", "1.0", [_make_wheel("pkg-1.0-any.whl")])
+        pkg_v2 = _make_resolved("pkg", "2.0", [_make_wheel("pkg-2.0-any.whl")])
+
+        # Write dummy files
+        files_dir = tmp_path / "files"
+        files_dir.mkdir()
+        (files_dir / "pkg-1.0-any.whl").write_bytes(b"v1")
+        (files_dir / "pkg-2.0-any.whl").write_bytes(b"v2")
+
+        # Pass list of packages
+        build_index([pkg_v1, pkg_v2], tmp_path)
+
+        data = json.loads((tmp_path / "simple" / "pkg" / "index.json").read_text())
+        assert len(data["files"]) == 2
+        filenames = {f["filename"] for f in data["files"]}
+        assert filenames == {"pkg-1.0-any.whl", "pkg-2.0-any.whl"}

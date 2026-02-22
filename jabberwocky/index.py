@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+from typing import Iterable
 
 from packaging.utils import canonicalize_name
 
@@ -18,7 +19,7 @@ CONTENT_TYPE_JSON = "application/vnd.pypi.simple.v1+json"
 
 
 def build_index(
-    resolved: dict[str, ResolvedPackage],
+    resolved: Iterable[ResolvedPackage] | dict[str, ResolvedPackage],
     output_dir: Path,
     base_url: str = "",
 ) -> None:
@@ -36,49 +37,71 @@ def build_index(
     simple_dir = output_dir / "simple"
     simple_dir.mkdir(parents=True, exist_ok=True)
     files_dir = output_dir / "files"
-
     base_url = base_url.rstrip("/")
+
+    # Normalize input to list of packages
+    if isinstance(resolved, dict):
+        packages_iter = resolved.values()
+    else:
+        packages_iter = resolved
+
+    # Group by canonical name to support multiple versions per package
+    by_name: dict[str, list[ResolvedPackage]] = {}
+    for pkg in packages_iter:
+        canonical = canonicalize_name(pkg.name)
+        if canonical not in by_name:
+            by_name[canonical] = []
+        by_name[canonical].append(pkg)
 
     # --- Project list ---
     project_list = {
         "meta": {"api-version": API_VERSION},
-        "projects": [
-            {"name": pkg.name}
-            for pkg in sorted(resolved.values(), key=lambda p: p.name)
-        ],
+        "projects": [{"name": name} for name in sorted(by_name.keys())],
     }
     _write_json(simple_dir / "index.json", project_list)
-    log.info("Wrote project list (%d packages)", len(resolved))
+    log.info("Wrote project list (%d packages)", len(by_name))
 
     # --- Per-project detail pages ---
-    for pkg in resolved.values():
-        _write_project_detail(pkg, simple_dir, files_dir, base_url)
+    for name, pkgs in by_name.items():
+        _write_project_detail(name, pkgs, simple_dir, files_dir, base_url)
 
 
 def _write_project_detail(
-    pkg: ResolvedPackage,
+    name: str,
+    pkgs: list[ResolvedPackage],
     simple_dir: Path,
     files_dir: Path,
     base_url: str,
 ) -> None:
-    canonical = canonicalize_name(pkg.name)
-    project_dir = simple_dir / canonical
+    project_dir = simple_dir / name
     project_dir.mkdir(parents=True, exist_ok=True)
 
     files = []
-    for wheel in pkg.release.wheels:
-        wheel_path = files_dir / wheel.filename
-        file_entry = _build_file_entry(wheel, wheel_path, base_url, pkg.needs_wheels)
-        if file_entry:
-            files.append(file_entry)
+    # Collect wheels from all versions/packages for this name
+    seen_files = set()
+    for pkg in pkgs:
+        for wheel in pkg.release.wheels:
+            if wheel.filename in seen_files:
+                continue
+            seen_files.add(wheel.filename)
+
+            wheel_path = files_dir / wheel.filename
+            file_entry = _build_file_entry(
+                wheel, wheel_path, base_url, pkg.needs_wheels
+            )
+            if file_entry:
+                files.append(file_entry)
+
+    # Sort files by filename for stable output
+    files.sort(key=lambda x: x["filename"])
 
     detail = {
         "meta": {"api-version": API_VERSION},
-        "name": canonical,
+        "name": name,
         "files": files,
     }
     _write_json(project_dir / "index.json", detail)
-    log.debug("Wrote detail for %s (%d files)", canonical, len(files))
+    log.debug("Wrote detail for %s (%d files)", name, len(files))
 
 
 def _build_file_entry(
