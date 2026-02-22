@@ -46,12 +46,34 @@ class WheelFile:
     def matches_python(self, python_version: str) -> bool:
         """Check if wheel is compatible with a python version string like '3.11'."""
         major, minor = python_version.split(".")
+        target_major = int(major)
+        target_minor = int(minor)
+
         cp_tag = f"cp{major}{minor}"
         py_tag = f"py{major}"
         py_full_tag = f"py{major}{minor}"
-        return any(
+
+        # 1. Exact tag match
+        if any(
             t in (cp_tag, py_tag, py_full_tag, "py3", "cp3") for t in self.python_tags
-        )
+        ):
+            return True
+
+        # 2. ABI3 compatibility (CPython only)
+        # e.g. wheel tagged "cp36" with abi_tag "abi3" works on cp37, cp38, etc.
+        if "abi3" in self.abi_tags:
+            for tag in self.python_tags:
+                # We currently only handle cp3x abi3 wheels
+                if tag.startswith("cp3") and len(tag) > 3:
+                    try:
+                        wheel_minor = int(tag[3:])
+                        # abi3 allows forward compatibility within the same major version
+                        if target_major == 3 and target_minor >= wheel_minor:
+                            return True
+                    except ValueError:
+                        continue
+
+        return False
 
 
 @dataclass

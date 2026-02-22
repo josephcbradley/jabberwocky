@@ -153,6 +153,25 @@ class TestWheelMatchesPython:
         assert wheel.matches_python("3.11")
         assert wheel.matches_python("3.12")
 
+    def test_abi3_compatibility(self):
+        # cp36 abi3 wheel matches cp312
+        wheel = WheelFile(
+            filename="pkg-1.0-cp36-abi3-linux_x86_64.whl",
+            url="",
+            sha256="",
+            requires_python=None,
+            python_tags=["cp36"],
+            abi_tags=["abi3"],
+            platform_tags=["linux_x86_64"],
+        )
+        assert wheel.matches_python("3.12")
+        assert wheel.matches_python("3.11")
+        assert wheel.matches_python("3.6")
+        # Should NOT match older python versions
+        assert not wheel.matches_python("3.5")
+        # Should NOT match Python 2
+        assert not wheel.matches_python("2.7")
+
 
 # ---------------------------------------------------------------------------
 # _parse_wheel_filename
