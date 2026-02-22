@@ -110,13 +110,32 @@ Jabberwocky also recognises `manylinux` and `musllinux` wheels as compatible wit
 
 Consider `ipykernel` on Windows: its dependency tree includes `appnope`, which is macOS-only. If you are only mirroring for Windows and Linux, Jabberwocky will not download `appnope` wheels. But it will include an `appnope` entry in the index that points back to PyPI. This means a Windows resolver that encounters `appnope` during dependency resolution can find it in the index and correctly determine it is not needed — without failing with a "package not found" error.
 
+## Keeping the mirror up to date
+
+To pull in new package versions or add packages to an existing mirror, use `update` instead of `build`:
+
+```bash
+jabberwocky update --config jabberwocky.toml
+```
+
+This will:
+1. Re-resolve and download into a staging area.
+2. Archive the current `mirror/` into `archives/<timestamp>/`.
+3. Compute a diff and write a portable patch to `diffs/<timestamp>/` containing only the changed files, plus an `APPLY.md` with instructions for patching the offline machine.
+4. Replace `mirror/` with the new state.
+
+To update the offline machine, transfer `diffs/<timestamp>/` via USB or any one-way link, then follow the `APPLY.md` inside — it requires only `cp` and `rm`, no Jabberwocky installation needed offline.
+
+See [UPDATING.md](UPDATING.md) for the full workflow.
+
 ## CLI reference
 
 ```
 jabberwocky build   Resolve, download, and index packages
+jabberwocky update  Incrementally update an existing mirror
 jabberwocky serve   Serve the mirror over HTTP
 ```
 
-Run `jabberwocky build --help` or `jabberwocky serve --help` for full option listings.
+Run `jabberwocky <command> --help` for full option listings.
 
 Full documentation is in the [`docs/`](docs/) directory.

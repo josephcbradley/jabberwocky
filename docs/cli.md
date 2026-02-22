@@ -99,6 +99,82 @@ Configure uv: uv add --index http://0.0.0.0:8080/simple/ <package>
 
 ---
 
+## `jabberwocky update`
+
+Incrementally update an existing mirror: archive the current state, re-resolve,
+download anything new, compute a diff, and write a portable diff package for
+transferring to an offline machine.
+
+```
+jabberwocky update [OPTIONS]
+```
+
+**Options:**
+
+| Flag | Short | Description |
+|---|---|---|
+| `--config PATH` | `-c` | Path to a TOML config file |
+| `--wishlist PATH` | `-w` | Path to a plaintext package wishlist |
+| `--python TEXT` | `-p` | Target Python version (repeatable) |
+| `--platform TEXT` | | Target platform tag (repeatable) |
+| `--mirror PATH` | `-m` | Mirror directory to update (default: `mirror`) |
+| `--archives PATH` | | Archive directory (default: `archives`) |
+| `--diffs PATH` | | Diff output directory (default: `diffs`) |
+| `--verbose` | `-v` | Enable debug logging |
+
+Either `--config` or `--wishlist` must be provided.
+
+**Steps performed:**
+
+1. Re-resolves all packages and downloads any new wheels into a staging area.
+2. Archives the current `mirror/` into `archives/<timestamp>/`.
+3. Computes a diff: added wheels, removed wheels, changed/added index entries.
+4. Writes a self-contained diff package to `diffs/<timestamp>/` containing only
+   the changed files, a `manifest.json`, and an `APPLY.md` with copy-paste
+   instructions for patching an offline machine.
+5. Replaces `mirror/` with the newly resolved state.
+
+**Examples:**
+
+```bash
+# Using a wishlist
+jabberwocky update \
+  --wishlist wishlist.txt \
+  --python 3.12 \
+  --platform linux_x86_64
+
+# Using a TOML config
+jabberwocky update --config jabberwocky.toml
+
+# Custom directories
+jabberwocky update --config jabberwocky.toml \
+  --mirror /mnt/mirror \
+  --archives /mnt/mirror-archives \
+  --diffs /mnt/mirror-diffs
+```
+
+**Output:**
+
+```
+Packages   : polars, scipy
+Python     : 3.12
+Platforms  : linux_x86_64
+Mirror dir : mirror
+Archives   : archives
+Diffs      : diffs
+Resolving dependencies...
+Diff: +3 wheels, -0 wheels, 2 index changes, 1 new index entries
+Resolved 49 packages total (33 with wheels, 16 metadata-only).
+Diff package written to diffs/20260222T134501Z/
+  See diffs/20260222T134501Z/APPLY.md for offline update instructions.
+Mirror updated at mirror/
+```
+
+See [UPDATING.md](../UPDATING.md) for full instructions on transferring and
+applying diff packages to an offline machine.
+
+---
+
 ## Pointing uv at the mirror
 
 Add the mirror as an index in your project:

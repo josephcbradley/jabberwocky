@@ -81,3 +81,30 @@ Jabberwocky solves this by including an `appnope` entry in the index pointing ba
 The built `mirror/` directory is served by a lightweight [Starlette](https://www.starlette.io/) application via `jabberwocky serve`. It implements PEP 691 content negotiation, returning `application/vnd.pypi.simple.v1+json` responses.
 
 The mirror can also be served by any static file server capable of setting custom `Content-Type` headers (e.g. nginx, Apache, Caddy) by pointing it at the `simple/` directory and configuring it to serve `.json` files with the `application/vnd.pypi.simple.v1+json` content type.
+
+## Incremental updates
+
+`jabberwocky update` extends the build pipeline with an archiving and diffing
+stage, designed for scenarios where the mirror is hosted on a machine with
+internet access and consumed on a machine without it.
+
+```
+wishlist.txt  ──►  resolve  ──►  download  ──►  index  ──►  diff  ──►  apply
+                   (PyPI)        (staging)      (staging)   (diffs/)   (mirror/)
+```
+
+**Archive** — before touching the live mirror, the current state is copied to
+`archives/<timestamp>/` so it can be restored if needed.
+
+**Diff** — the new (staging) mirror is compared against the old one file by
+file using SHA-256 hashes:
+- *Added wheels*: in staging but not in current mirror.
+- *Removed wheels*: in current mirror but not in staging (package removed or version superseded).
+- *Changed index entries*: `simple/*/index.json` files whose content changed (new version available, URL changed, etc.).
+- *Added index entries*: packages that are newly resolved and have no prior entry.
+
+**Diff package** — only the changed files are written to `diffs/<timestamp>/`,
+making it small enough to transfer via USB. An `APPLY.md` is generated
+alongside a `manifest.json` listing all changes. Applying the diff on the
+offline machine requires only `cp` and `rm` — no Jabberwocky installation is
+needed there.
