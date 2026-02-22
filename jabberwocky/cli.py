@@ -100,21 +100,16 @@ def build(
     click.echo(f"Output dir : {cfg.output_dir}")
 
     async def _run() -> None:
-        click.echo("Resolving dependencies...")
+        click.echo("Resolving dependencies...", nl=False)
         resolved = await resolve(
             cfg.packages,
             cfg.python_versions,
             cfg.platforms,
             pypi_url=cfg.pypi_url,
         )
-        click.echo(f"Resolved {len(resolved)} packages total.")
-
         wheel_count = sum(1 for p in resolved.values() if p.needs_wheels)
-        meta_only = len(resolved) - wheel_count
-        click.echo(f"  {wheel_count} packages need wheels")
-        click.echo(f"  {meta_only} packages are metadata-only (global resolvability)")
+        click.echo(f" {len(resolved)} packages ({wheel_count} with wheels)")
 
-        click.echo("Downloading wheels...")
         await download_wheels(
             resolved,
             cfg.output_dir,
@@ -122,9 +117,7 @@ def build(
             cfg.platforms,
         )
 
-        click.echo("Building index...")
         build_index(resolved, cfg.output_dir)
-
         click.echo(f"Mirror built at {cfg.output_dir}/")
 
     asyncio.run(_run())

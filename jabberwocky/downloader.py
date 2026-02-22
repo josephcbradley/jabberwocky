@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import shutil
+import sys
 from pathlib import Path
 
 import httpx
@@ -14,12 +16,58 @@ from .pypi import ResolvedPackage, WheelFile
 log = logging.getLogger(__name__)
 
 
+class _Progress:
+    """Single-line, in-place progress display (no external dependencies)."""
+
+    def __init__(self, total: int) -> None:
+        self.total = total
+        self.done = 0
+        self._current = ""
+        self._lock = asyncio.Lock()
+        self._is_tty = sys.stderr.isatty()
+        self._bar_width = 20
+
+    def _render(self) -> str:
+        filled = int(self._bar_width * self.done / max(self.total, 1))
+        bar = "=" * filled + " " * (self._bar_width - filled)
+        # Truncate long filenames to keep the line tidy
+        name = self._current
+        term_width = shutil.get_terminal_size((80, 20)).columns
+        prefix = f"Downloading {name}"
+        suffix = f" [{bar}] {self.done}/{self.total}"
+        # Trim name if it won't fit
+        max_name = term_width - len(suffix) - len("Downloading ")
+        if max_name > 0 and len(name) > max_name:
+            name = name[: max_name - 1] + "…"
+            prefix = f"Downloading {name}"
+        return prefix + suffix
+
+    async def update(self, filename: str, *, completed: bool) -> None:
+        async with self._lock:
+            if completed:
+                self.done += 1
+            self._current = filename
+            if self._is_tty:
+                line = self._render()
+                sys.stderr.write(f"\r{line}")
+                sys.stderr.flush()
+
+    def finish(self) -> None:
+        if self._is_tty:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+        else:
+            # Non-TTY: emit a single summary line
+            sys.stderr.write(f"Downloaded {self.done}/{self.total} wheels\n")
+            sys.stderr.flush()
+
+
 async def download_wheels(
     resolved: dict[str, ResolvedPackage],
     output_dir: Path,
     python_versions: list[str],
     platforms: list[str],
-    concurrency: int = 5,
+    concurrency: int = 10,
 ) -> None:
     """
     Download all wheels that match the target platforms/python versions.
@@ -32,24 +80,33 @@ async def download_wheels(
 
     sem = asyncio.Semaphore(concurrency)
 
-    async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
-        tasks = []
-        for pkg in resolved.values():
-            if not pkg.needs_wheels:
-                log.debug("Skipping wheels for %s (metadata only)", pkg.name)
+    # Build the task list first so we know the total count
+    pending: list[tuple[WheelFile, Path]] = []
+    for pkg in resolved.values():
+        if not pkg.needs_wheels:
+            log.debug("Skipping wheels for %s (metadata only)", pkg.name)
+            continue
+        for wheel in pkg.release.wheels:
+            if not _wheel_wanted(wheel, python_versions, platforms):
                 continue
+            dest = files_dir / wheel.filename
+            if dest.exists():
+                log.debug("Already have %s", wheel.filename)
+                continue
+            pending.append((wheel, dest))
 
-            for wheel in pkg.release.wheels:
-                if not _wheel_wanted(wheel, python_versions, platforms):
-                    continue
-                dest = files_dir / wheel.filename
-                if dest.exists():
-                    log.debug("Already have %s", wheel.filename)
-                    continue
-                tasks.append(_download_one(client, sem, wheel, dest))
+    if not pending:
+        return
 
-        if tasks:
-            await asyncio.gather(*tasks)
+    progress = _Progress(total=len(pending))
+
+    async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
+        tasks = [
+            _download_one(client, sem, wheel, dest, progress) for wheel, dest in pending
+        ]
+        await asyncio.gather(*tasks)
+
+    progress.finish()
 
 
 def _wheel_wanted(
@@ -66,9 +123,10 @@ async def _download_one(
     sem: asyncio.Semaphore,
     wheel: WheelFile,
     dest: Path,
+    progress: _Progress,
 ) -> None:
     async with sem:
-        log.info("Downloading %s", wheel.filename)
+        await progress.update(wheel.filename, completed=False)
         try:
             async with client.stream("GET", wheel.url) as resp:
                 resp.raise_for_status()
@@ -87,8 +145,10 @@ async def _download_one(
                         wheel.sha256,
                         digest,
                     )
-                    return
-                tmp.rename(dest)
-                log.info("Saved %s", dest.name)
+                else:
+                    tmp.rename(dest)
+                    log.debug("Saved %s", dest.name)
         except Exception as e:
             log.error("Failed to download %s: %s", wheel.filename, e)
+        finally:
+            await progress.update(wheel.filename, completed=True)
