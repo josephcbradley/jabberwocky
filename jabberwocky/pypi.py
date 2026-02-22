@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
@@ -13,7 +13,6 @@ import httpx
 from packaging.markers import Marker
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
-from packaging.version import Version
 
 log = logging.getLogger(__name__)
 
