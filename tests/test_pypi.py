@@ -10,8 +10,11 @@ from packaging.markers import Marker
 from packaging.requirements import Requirement
 
 from jabberwocky.downloader import _wheel_wanted
+import httpx
+
 from jabberwocky.pypi import (
     PackageRelease,
+    PyPIClient,
     ResolvedPackage,
     WheelFile,
     _dep_reachable,
@@ -417,3 +420,43 @@ class TestWheelWanted:
     def test_wheel_not_wanted_when_no_python_matches(self):
         wheel = self._wheel(["cp310"], ["linux_x86_64"])
         assert not _wheel_wanted(wheel, ["3.11", "3.12"], ["linux_x86_64"])
+
+
+# ---------------------------------------------------------------------------
+# PyPIClient.fetch_release
+# ---------------------------------------------------------------------------
+
+
+class TestPyPIClientFetchRelease:
+    @pytest.mark.asyncio
+    async def test_fetch_release_http_status_error(self, caplog):
+        client = PyPIClient()
+        async with client:
+            # client._client is set in __aenter__
+            with patch.object(client._client, "get", new_callable=AsyncMock) as mock_get:
+                mock_resp = MagicMock()
+                mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+                    "404 Not Found", request=MagicMock(), response=mock_resp
+                )
+                mock_get.return_value = mock_resp
+
+                result = await client.fetch_release("nonexistent")
+
+                assert result is None
+                assert "Failed to fetch" in caplog.text
+                assert "404 Not Found" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_fetch_release_request_error(self, caplog):
+        client = PyPIClient()
+        async with client:
+            with patch.object(client._client, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.side_effect = httpx.RequestError(
+                    "Connection failed", request=MagicMock()
+                )
+
+                result = await client.fetch_release("somepkg")
+
+                assert result is None
+                assert "Request error for" in caplog.text
+                assert "Connection failed" in caplog.text
