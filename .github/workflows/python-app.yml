@@ -26,5 +26,7 @@ jobs:
       run: uv sync --locked --all-extras --dev
     - name: Lint with ruff
     - uses: astral-sh/ruff-action@v3
+      with:
+        src: "./jabberwocky"
     - name: Run tests
       run: uv run pytest tests
