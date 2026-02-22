@@ -1,5 +1,7 @@
 # Jabberwocky
 
+[![Python application](https://github.com/josephcbradley/jabberwocky/actions/workflows/python-app.yml/badge.svg)](https://github.com/josephcbradley/jabberwocky/actions/workflows/python-app.yml)
+
 Jabberwocky builds partial Python package mirrors. You tell it which packages you need, which Python versions and platforms your team uses, and it downloads exactly the wheels required — nothing more.
 
 Suppose your team uses Linux and Windows machines behind a firewall. Alice uses Windows and needs `autograd`, `scipy`, and `polars`. Bob uses Linux and needs `pandas`, `autograd`, and `flask`. Jabberwocky builds a mirror that serves both of them, so Alice can run `uv add polars` with `uv` pointed at the local mirror.
