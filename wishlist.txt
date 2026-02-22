@@ -1,0 +1,5 @@
+polars
+gradio
+chromadb
+scipy
+autograd
