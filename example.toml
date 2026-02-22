@@ -1,0 +1,5 @@
+[mirror]
+packages = ["polars", "scipy", "autograd", "gradio"]
+python_versions = ["3.11", "3.12"]
+platforms = ["linux_x86_64", "win_amd64"]
+output_dir = "mirror"
