@@ -52,10 +52,10 @@ def archive_mirror(mirror_dir: Path, archives_dir: Path, timestamp: str) -> Path
     """Copy the current mirror snapshot into archives/<timestamp>/."""
     dest = archives_dir / timestamp
     if mirror_dir.exists():
-        log.info("Archiving current mirror to %s", dest)
+        log.debug("Archiving current mirror to %s", dest)
         shutil.copytree(mirror_dir, dest)
     else:
-        log.info("No existing mirror to archive.")
+        log.debug("No existing mirror to archive.")
         dest.mkdir(parents=True, exist_ok=True)
     return dest
 
@@ -126,7 +126,7 @@ def _index_content_map(simple_dir: Path) -> dict[str, str]:
 
 def apply_update(new_mirror: Path, mirror_dir: Path) -> None:
     """Replace mirror_dir contents with new_mirror contents."""
-    log.info("Applying update to %s", mirror_dir)
+    log.debug("Applying update to %s", mirror_dir)
     if mirror_dir.exists():
         shutil.rmtree(mirror_dir)
     shutil.copytree(new_mirror, mirror_dir)
@@ -297,7 +297,7 @@ def run_update(
     staging = Path(staging_tmp)
     try:
         # 1. Build the new mirror state in a temp dir
-        log.info("Resolving dependencies...")
+        log.debug("Resolving dependencies...")
 
         async def _run():
             resolved = await resolve_fn(cfg)
@@ -344,7 +344,7 @@ def run_update(
         # 3. Compute diff (old = current mirror, new = staging)
         diff = compute_diff(mirror_dir, staging)
 
-        log.info(
+        log.debug(
             "Diff: +%d wheels, -%d wheels, %d index changes, %d new index entries",
             len(diff["added_wheels"]),
             len(diff["removed_wheels"]),

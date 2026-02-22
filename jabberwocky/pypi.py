@@ -6,7 +6,8 @@ import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Any, Callable
 
 import httpx
 from packaging.markers import Marker
@@ -279,6 +280,7 @@ async def resolve(
     python_versions: list[str],
     platforms: list[str],
     pypi_url: str = "https://pypi.org/pypi",
+    on_update: Callable[[list[str]], None] | None = None,
 ) -> dict[str, ResolvedPackage]:
     """
     Resolve the full transitive dependency graph for the given packages.
@@ -314,6 +316,9 @@ async def resolve(
             if not tasks:
                 break
 
+            if on_update:
+                on_update(sorted(in_flight))
+
             results = await asyncio.gather(*tasks)
 
             # Now fetch dependencies for each result
@@ -331,7 +336,7 @@ async def resolve(
                     release=release,
                     needs_wheels=needs_wheels,
                 )
-                log.info(
+                log.debug(
                     "Resolved %s==%s (wheels=%s)",
                     canonical,
                     release.version,

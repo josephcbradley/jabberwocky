@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shutil
 import sys
 from pathlib import Path
 
@@ -14,6 +15,34 @@ from .downloader import download_wheels
 from .index import build_index
 from .pypi import resolve
 from .updater import run_update
+
+
+class ResolutionProgress:
+    def __init__(self) -> None:
+        self._is_tty = sys.stderr.isatty()
+        self._last_line_len = 0
+
+    def update(self, current_batch: list[str]) -> None:
+        if not self._is_tty:
+            return
+
+        names = ", ".join(current_batch)
+        width = shutil.get_terminal_size((80, 20)).columns
+        prefix = "Resolving dependencies... "
+        max_names_len = width - len(prefix) - 2
+        if len(names) > max_names_len:
+            names = names[: max_names_len - 1] + "…"
+
+        line = f"{prefix}{names}"
+        padding = " " * max(0, self._last_line_len - len(line))
+        sys.stderr.write(f"\r{line}{padding}")
+        sys.stderr.flush()
+        self._last_line_len = len(line)
+
+    def finish(self) -> None:
+        if self._is_tty:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -100,15 +129,20 @@ def build(
     click.echo(f"Output dir : {cfg.output_dir}")
 
     async def _run() -> None:
-        click.echo("Resolving dependencies...", nl=False)
-        resolved = await resolve(
-            cfg.packages,
-            cfg.python_versions,
-            cfg.platforms,
-            pypi_url=cfg.pypi_url,
-        )
+        progress = ResolutionProgress()
+        try:
+            resolved = await resolve(
+                cfg.packages,
+                cfg.python_versions,
+                cfg.platforms,
+                pypi_url=cfg.pypi_url,
+                on_update=progress.update,
+            )
+        finally:
+            progress.finish()
+
         wheel_count = sum(1 for p in resolved.values() if p.needs_wheels)
-        click.echo(f" {len(resolved)} packages ({wheel_count} with wheels)")
+        click.echo(f"{len(resolved)} packages ({wheel_count} with wheels)")
 
         await download_wheels(
             resolved,
@@ -247,13 +281,24 @@ def update(
     archives.mkdir(parents=True, exist_ok=True)
     diffs.mkdir(parents=True, exist_ok=True)
 
+    async def _resolve_with_progress(c: Config) -> dict:
+        progress = ResolutionProgress()
+        try:
+            return await resolve(
+                c.packages,
+                c.python_versions,
+                c.platforms,
+                pypi_url=c.pypi_url,
+                on_update=progress.update,
+            )
+        finally:
+            progress.finish()
+
     diff_dir, diff, resolved = run_update(
         mirror_dir=mirror,
         archives_dir=archives,
         diffs_dir=diffs,
-        resolve_fn=lambda c: resolve(
-            c.packages, c.python_versions, c.platforms, pypi_url=c.pypi_url
-        ),
+        resolve_fn=_resolve_with_progress,
         download_fn=download_wheels,
         build_index_fn=build_index,
         cfg=cfg,
