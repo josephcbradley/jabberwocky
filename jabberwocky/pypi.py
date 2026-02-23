@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
@@ -82,6 +82,7 @@ class PackageRelease:
     version: str
     wheels: list[WheelFile]
     metadata_url: str | None = None  # .metadata sidecar if available
+    requires_dist: list[Requirement] = field(default_factory=list)
 
 
 @dataclass
@@ -243,10 +244,19 @@ class PyPIClient:
 
         wheels = _extract_wheels(files)
 
+        requires_dist = info.get("requires_dist") or []
+        reqs = []
+        for r in requires_dist:
+            try:
+                reqs.append(Requirement(r))
+            except Exception:
+                log.debug("Could not parse requirement %r", r)
+
         return PackageRelease(
             name=canonical,
             version=release_version,
             wheels=wheels,
+            requires_dist=reqs,
         )
 
     async def fetch_dependencies(self, name: str, version: str) -> list[Requirement]:
@@ -321,8 +331,6 @@ async def resolve(
             results = await asyncio.gather(*tasks)
 
             # Now fetch dependencies for each result
-            dep_tasks = []
-            dep_meta = []  # (canonical, needs_wheels)
             for (canonical, ver, needs_wheels), release in zip(batch, results):
                 in_flight.discard(canonical)
                 if release is None:
@@ -341,12 +349,10 @@ async def resolve(
                     release.version,
                     needs_wheels,
                 )
-                dep_tasks.append(client.fetch_dependencies(canonical, release.version))
-                dep_meta.append((canonical, needs_wheels))
 
-            dep_results = await asyncio.gather(*dep_tasks)
+                deps = release.requires_dist
+                parent_needs_wheels = needs_wheels
 
-            for (canonical, parent_needs_wheels), deps in zip(dep_meta, dep_results):
                 for req in deps:
                     dep_canonical = canonicalize_name(req.name)
                     if dep_canonical in resolved:
