@@ -220,7 +220,8 @@ class PyPIClient:
 
         async with self._sem:
             try:
-                assert self._client is not None
+                if self._client is None:
+                    raise RuntimeError("PyPIClient must be used as an async context manager")
                 resp = await self._client.get(url)
                 resp.raise_for_status()
             except httpx.HTTPStatusError as e:
@@ -256,7 +257,8 @@ class PyPIClient:
 
         async with self._sem:
             try:
-                assert self._client is not None
+                if self._client is None:
+                    raise RuntimeError("PyPIClient must be used as an async context manager")
                 resp = await self._client.get(url)
                 resp.raise_for_status()
             except Exception as e:
