@@ -460,3 +460,23 @@ class TestPyPIClientFetchRelease:
                 assert result is None
                 assert "Request error for" in caplog.text
                 assert "Connection failed" in caplog.text
+
+# ---------------------------------------------------------------------------
+# PyPIClient.fetch_dependencies
+# ---------------------------------------------------------------------------
+
+
+class TestPyPIClientFetchDependencies:
+    @pytest.mark.asyncio
+    async def test_fetch_dependencies_error(self, caplog):
+        client = PyPIClient()
+        async with client:
+            # client._client is set in __aenter__
+            with patch.object(client._client, "get", new_callable=AsyncMock) as mock_get:
+                mock_get.side_effect = Exception("Some unexpected error")
+
+                result = await client.fetch_dependencies("somepkg", "1.0.0")
+
+                assert result == []
+                assert "Failed to fetch deps for somepkg==1.0.0" in caplog.text
+                assert "Some unexpected error" in caplog.text
