@@ -335,6 +335,13 @@ class TestEvalMarkerForAnyTarget:
         # Windows + 3.12 → False (python_version condition fails)
         assert _eval_marker_for_any_target(marker, ["3.12"], ["win_amd64"]) is False
 
+    def test_marker_evaluation_exception_returns_true(self):
+        """If marker evaluation raises an exception, we conservatively return True."""
+        marker = MagicMock(spec=Marker)
+        marker.evaluate.side_effect = Exception("Boom!")
+        result = _eval_marker_for_any_target(marker, ["3.12"], ["linux_x86_64"])
+        assert result is True
+
 
 # ---------------------------------------------------------------------------
 # _dep_reachable
