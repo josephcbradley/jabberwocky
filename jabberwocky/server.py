@@ -42,15 +42,6 @@ def _wants_json(request: Request) -> bool:
     return True
 
 
-def _json_response(data: dict) -> Response:
-    import json
-
-    return Response(
-        content=json.dumps(data),
-        media_type=CONTENT_TYPE_JSON,
-    )
-
-
 def make_app(mirror_dir: Path) -> Starlette:
     simple_dir = mirror_dir / "simple"
     files_dir = mirror_dir / "files"
@@ -59,10 +50,7 @@ def make_app(mirror_dir: Path) -> Starlette:
         index_file = simple_dir / "index.json"
         if not index_file.exists():
             return Response("Mirror not built yet", status_code=503)
-        import json
-
-        data = json.loads(index_file.read_text())
-        return _json_response(data)
+        return FileResponse(index_file, media_type=CONTENT_TYPE_JSON)
 
     async def project_detail(request: Request) -> Response:
         name = request.path_params["project"]
@@ -73,10 +61,7 @@ def make_app(mirror_dir: Path) -> Starlette:
         index_file = simple_dir / canonical / "index.json"
         if not index_file.exists():
             return Response(f"Package {name!r} not found in mirror", status_code=404)
-        import json
-
-        data = json.loads(index_file.read_text())
-        return _json_response(data)
+        return FileResponse(index_file, media_type=CONTENT_TYPE_JSON)
 
     async def serve_file(request: Request) -> Response:
         filename = request.path_params["filename"]
