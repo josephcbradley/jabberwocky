@@ -90,6 +90,17 @@ async def download_wheels(
             if not _wheel_wanted(wheel, python_versions, platforms):
                 continue
             dest = files_dir / wheel.filename
+            try:
+                if not dest.resolve().is_relative_to(files_dir.resolve()):
+                    log.warning(
+                        "Skipping wheel with suspicious filename (path traversal): %s",
+                        wheel.filename,
+                    )
+                    continue
+            except ValueError:
+                log.warning("Skipping wheel with invalid filename: %s", wheel.filename)
+                continue
+
             if dest.exists():
                 log.debug("Already have %s", wheel.filename)
                 continue
