@@ -55,6 +55,11 @@ jobs:
         cd test-project
         uv init
 
+        # Ensure test-project is treated as a standalone workspace to avoid inheriting root dependencies
+        echo "" >> pyproject.toml
+        echo "[tool.uv.workspace]" >> pyproject.toml
+        echo "members = []" >> pyproject.toml
+
         # Get absolute URI to mirror for offline install (uv --offline blocks localhost)
         # We need the full file URI to bypass network restriction while verifying offline capability.
         # Mirror path is ../mirror/simple relative to test-project
