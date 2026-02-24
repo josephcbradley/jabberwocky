@@ -37,7 +37,10 @@ class MirrorHandler(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         # Use standard logging
-        log.info("%s - - [%s] %s\n" % (self.client_address[0], self.log_date_time_string(), format % args))
+        log.info(
+            "%s - - [%s] %s\n"
+            % (self.client_address[0], self.log_date_time_string(), format % args)
+        )
 
     def do_GET(self):
         path = unquote(self.path).rstrip("/")
@@ -49,13 +52,13 @@ class MirrorHandler(http.server.BaseHTTPRequestHandler):
             self.serve_simple_index()
         elif path.startswith("/simple/"):
             # Project detail
-            project = path[len("/simple/"):]
+            project = path[len("/simple/") :]
             if "/" in project:
-                 self.send_error(404, "Not Found")
-                 return
+                self.send_error(404, "Not Found")
+                return
             self.serve_project_detail(project)
         elif path.startswith("/files/"):
-            filename = path[len("/files/"):]
+            filename = path[len("/files/") :]
             self.serve_file(filename)
         else:
             self.send_error(404, "Not Found")
@@ -98,15 +101,15 @@ class MirrorHandler(http.server.BaseHTTPRequestHandler):
 
     def serve_file(self, filename: str):
         if not filename.endswith(".whl"):
-             self.send_error(400, "Only wheels are served")
-             return
+            self.send_error(400, "Only wheels are served")
+            return
 
         # Security check: path traversal
         try:
             path = (self.files_dir / filename).resolve()
         except Exception:
-             self.send_error(400, "Invalid path")
-             return
+            self.send_error(400, "Invalid path")
+            return
 
         # Ensure path is within files_dir
         # resolve() handles symlinks, but we should verify base.
@@ -128,6 +131,7 @@ class MirrorHandler(http.server.BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(fs.st_size))
                 self.end_headers()
                 import shutil
+
                 shutil.copyfileobj(f, self.wfile)
         except Exception as e:
             log.error(f"Error serving file: {e}")
@@ -135,6 +139,7 @@ class MirrorHandler(http.server.BaseHTTPRequestHandler):
 
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     """Handle requests in a separate thread."""
+
     daemon_threads = True
 
 
@@ -156,7 +161,9 @@ def run(mirror_dir: Path, host: str, port: int):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Serve Jabberwocky mirror")
-    parser.add_argument("--mirror", type=Path, default=Path("mirror"), help="Mirror directory")
+    parser.add_argument(
+        "--mirror", type=Path, default=Path("mirror"), help="Mirror directory"
+    )
     parser.add_argument("--host", default="0.0.0.0", help="Host interface")
     parser.add_argument("--port", type=int, default=8080, help="Port")
     args = parser.parse_args()

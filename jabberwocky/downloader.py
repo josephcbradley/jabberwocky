@@ -66,7 +66,7 @@ class _Progress:
         prefix = f"Downloading {status.filename}"
         suffix = f" {bar} {size_str}"
 
-        max_name = term_width - len(suffix) - 13 # "Downloading "
+        max_name = term_width - len(suffix) - 13  # "Downloading "
         name = status.filename
         if max_name > 0 and len(name) > max_name:
             name = name[: max_name - 1] + "…"
@@ -75,16 +75,26 @@ class _Progress:
         return line.ljust(term_width - 1)
 
     async def update(
-        self, slot: int, filename: str, downloaded: int, total: int | None, complete: bool = False
+        self,
+        slot: int,
+        filename: str,
+        downloaded: int,
+        total: int | None,
+        complete: bool = False,
     ) -> None:
         if not self._is_tty:
             if complete:
                 async with self._lock:
                     self.completed_files += 1
                     # In non-TTY, we'll just log every 10% or so to avoid spam
-                    if self.completed_files % max(1, self.total_files // 10) == 0 or self.completed_files == self.total_files:
-                         sys.stderr.write(f"Progress: {self.completed_files}/{self.total_files} files downloaded\n")
-                         sys.stderr.flush()
+                    if (
+                        self.completed_files % max(1, self.total_files // 10) == 0
+                        or self.completed_files == self.total_files
+                    ):
+                        sys.stderr.write(
+                            f"Progress: {self.completed_files}/{self.total_files} files downloaded\n"
+                        )
+                        sys.stderr.flush()
             return
 
         async with self._lock:
@@ -117,7 +127,9 @@ class _Progress:
             sys.stderr.write("\n")
             sys.stderr.flush()
         else:
-            sys.stderr.write(f"Downloaded {self.completed_files}/{self.total_files} wheels\n")
+            sys.stderr.write(
+                f"Downloaded {self.completed_files}/{self.total_files} wheels\n"
+            )
             sys.stderr.flush()
 
 
@@ -143,7 +155,9 @@ async def download_wheels(
             continue
 
         wanted_wheels = [
-            w for w in pkg.release.wheels if _wheel_wanted(w, python_versions, platforms)
+            w
+            for w in pkg.release.wheels
+            if _wheel_wanted(w, python_versions, platforms)
         ]
 
         if not wanted_wheels and pkg.release.wheels:
@@ -171,7 +185,7 @@ async def download_wheels(
         return
 
     progress = _Progress(total_files=len(pending), concurrency=concurrency)
-    
+
     # We need a way to assign slots to workers
     slot_queue: asyncio.Queue[int] = asyncio.Queue()
     for i in range(concurrency):
@@ -179,7 +193,8 @@ async def download_wheels(
 
     async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
         tasks = [
-            _download_one(client, sem, wheel, dest, progress, slot_queue) for wheel, dest in pending
+            _download_one(client, sem, wheel, dest, progress, slot_queue)
+            for wheel, dest in pending
         ]
         await asyncio.gather(*tasks)
 
@@ -213,14 +228,16 @@ async def _download_one(
                 hasher = hashlib.sha256()
                 tmp = dest.with_suffix(".tmp")
                 downloaded = 0
-                
+
                 with open(tmp, "wb") as f:
                     async for chunk in resp.aiter_bytes(65536):
                         f.write(chunk)
                         hasher.update(chunk)
                         downloaded += len(chunk)
-                        await progress.update(slot, wheel.filename, downloaded, total_size)
-                
+                        await progress.update(
+                            slot, wheel.filename, downloaded, total_size
+                        )
+
                 digest = hasher.hexdigest()
                 if wheel.sha256 and digest != wheel.sha256:
                     tmp.unlink(missing_ok=True)

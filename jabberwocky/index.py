@@ -168,7 +168,9 @@ def _write_project_list_html(path: Path, projects: Iterable[str]) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _write_project_detail_html(path: Path, name: str, files: list[dict[str, Any]]) -> None:
+def _write_project_detail_html(
+    path: Path, name: str, files: list[dict[str, Any]]
+) -> None:
     """Write PEP 503 HTML project detail page."""
     lines = ["<!DOCTYPE html>", "<html>", "<body>", f"<h1>{name}</h1>"]
     for f in files:

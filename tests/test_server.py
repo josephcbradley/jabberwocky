@@ -68,6 +68,7 @@ def server_url(tmp_path):
     """Start the server in a thread and return the base URL."""
     # Find a free port
     import socket
+
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(("", 0))
     port = s.getsockname()[1]

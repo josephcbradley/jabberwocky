@@ -433,7 +433,9 @@ class TestPyPIClientFetchRelease:
         client = PyPIClient()
         async with client:
             # client._client is set in __aenter__
-            with patch.object(client._client, "get", new_callable=AsyncMock) as mock_get:
+            with patch.object(
+                client._client, "get", new_callable=AsyncMock
+            ) as mock_get:
                 mock_resp = MagicMock()
                 mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
                     "404 Not Found", request=MagicMock(), response=mock_resp
@@ -450,7 +452,9 @@ class TestPyPIClientFetchRelease:
     async def test_fetch_release_request_error(self, caplog):
         client = PyPIClient()
         async with client:
-            with patch.object(client._client, "get", new_callable=AsyncMock) as mock_get:
+            with patch.object(
+                client._client, "get", new_callable=AsyncMock
+            ) as mock_get:
                 mock_get.side_effect = httpx.RequestError(
                     "Connection failed", request=MagicMock()
                 )
