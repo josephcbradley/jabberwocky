@@ -2,9 +2,9 @@ name: Windows Offline Mirror Test
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 jobs:
   test-windows-offline:
