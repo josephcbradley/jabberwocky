@@ -63,7 +63,7 @@ class _Progress:
         if status.total:
             size_str += f"/{self._format_size(status.total)}"
 
-        prefix = f"Downloading {status.filename}"
+        #prefix = f"Downloading {status.filename}"
         suffix = f" {bar} {size_str}"
 
         max_name = term_width - len(suffix) - 13  # "Downloading "
