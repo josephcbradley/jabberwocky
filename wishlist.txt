@@ -1,5 +1,2 @@
 polars
-gradio
-chromadb
-scipy
-autograd
+ipykernel
