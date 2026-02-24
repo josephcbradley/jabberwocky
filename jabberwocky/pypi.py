@@ -101,9 +101,41 @@ def _platform_tag_matches(wheel_plat: str, target_plat: str) -> bool:
 
     Handles manylinux, musllinux, and exact matches.
     e.g. manylinux_2_17_x86_64 is compatible with linux_x86_64
+    Also handles macOS version compatibility (e.g. 10.9 wheel on 11.0 target).
     """
     if wheel_plat == target_plat:
         return True
+
+    # macOS compatibility: macosx_MAJOR_MINOR_ARCH
+    if target_plat.startswith("macosx_") and wheel_plat.startswith("macosx_"):
+        try:
+            # Parse target: macosx_11_0_x86_64 -> [11, 0], x86_64
+            parts_t = target_plat.split("_")
+            parts_w = wheel_plat.split("_")
+            if len(parts_t) < 4 or len(parts_w) < 4:
+                return False
+
+            t_arch = "_".join(parts_t[3:])
+            w_arch = "_".join(parts_w[3:])
+
+            # Arch check (handle universal2)
+            arch_match = t_arch == w_arch
+            if not arch_match:
+                if w_arch == "universal2" and t_arch in ("x86_64", "arm64"):
+                    arch_match = True
+                elif t_arch == "universal2" and w_arch in ("x86_64", "arm64"):
+                    arch_match = True
+
+            if not arch_match:
+                return False
+
+            t_ver = (int(parts_t[1]), int(parts_t[2]))
+            w_ver = (int(parts_w[1]), int(parts_w[2]))
+
+            return w_ver <= t_ver
+        except (ValueError, IndexError):
+            return False
+
     # manylinux compat: manylinux*_x86_64 matches linux_x86_64
     if target_plat.startswith("linux_"):
         arch = target_plat[len("linux_") :]
@@ -356,15 +388,11 @@ async def resolve(
                             resolved[dep_canonical].needs_wheels = True
                         continue
 
-                    # Determine if this dep is reachable on any target
-                    dep_reachable = _dep_reachable(req, python_versions, platforms)
-
-                    if dep_reachable and parent_needs_wheels:
-                        dep_needs_wheels = True
-                    else:
-                        # Dep is either unreachable on targets, or parent is metadata-only.
-                        # We still include it for global resolvability but don't serve wheels.
-                        dep_needs_wheels = False
+                    # Always download wheels for all resolved dependencies to ensure full offline support.
+                    # Even if a dependency is not reachable on the target platform (e.g. appnope on Windows),
+                    # the resolver might still need to inspect it. If we don't serve wheels/metadata,
+                    # uv --offline will fail.
+                    dep_needs_wheels = True
 
                     # Pin version if specified in requirement
                     pin = _extract_pin(req)

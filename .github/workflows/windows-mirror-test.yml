@@ -1,0 +1,66 @@
+name: Windows Offline Mirror Test
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  test-windows-offline:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: "3.12"
+        enable-cache: true
+
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Build Mirror
+      shell: bash
+      run: |
+        # Create wishlist file
+        echo "ipykernel" > wishlist.txt
+        echo "polars" >> wishlist.txt
+
+        uv run jabberwocky build \
+          --wishlist wishlist.txt \
+          --python 3.12 \
+          --platform win_amd64 \
+          --output mirror \
+          --verbose
+
+    - name: Start Server & Install Offline
+      shell: bash
+      run: |
+        # Start server in background using python -m to test stdlib execution
+        uv run python -m jabberwocky.server --mirror mirror --port 8080 &
+        SERVER_PID=$!
+
+        # Wait for server
+        sleep 5
+
+        echo "Testing offline install..."
+
+        # Create a fresh venv for testing install
+        uv venv .test-venv
+
+        # Try to install ipykernel and polars strictly from the mirror
+        # --offline ensures no PyPI access.
+        # --index-url points to local mirror.
+        # We target the venv python.
+        uv pip install \
+          --python .test-venv/Scripts/python \
+          --offline \
+          --index-url http://localhost:8080/simple/ \
+          ipykernel polars
+
+        INSTALL_EXIT_CODE=$?
+
+        kill $SERVER_PID || true
+        exit $INSTALL_EXIT_CODE

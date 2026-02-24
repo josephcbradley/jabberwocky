@@ -172,13 +172,9 @@ def serve(mirror: Path, host: str, port: int, verbose: bool) -> None:
     """Serve the mirror over HTTP."""
     _setup_logging(verbose)
 
-    import uvicorn
-    from .server import make_app
+    from .server import run
 
-    app = make_app(mirror)
-    click.echo(f"Serving mirror at http://{host}:{port}/simple/")
-    click.echo(f"Configure uv: uv add --index http://{host}:{port}/simple/ <package>")
-    uvicorn.run(app, host=host, port=port, log_level="warning")
+    run(mirror, host, port)
 
 
 @cli.command()
