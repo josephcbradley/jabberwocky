@@ -86,9 +86,32 @@ async def download_wheels(
         if not pkg.needs_wheels:
             log.debug("Skipping wheels for %s (metadata only)", pkg.name)
             continue
-        for wheel in pkg.release.wheels:
-            if not _wheel_wanted(wheel, python_versions, platforms):
-                continue
+
+        # Collect wheels that match target platforms
+        wanted_wheels = [
+            w for w in pkg.release.wheels if _wheel_wanted(w, python_versions, platforms)
+        ]
+
+        # If no wheels match but we need wheels (for offline resolution of unreachable deps),
+        # fallback to downloading *any* wheel so we can serve metadata.
+        if not wanted_wheels and pkg.release.wheels:
+            log.warning(
+                "No platform-matching wheels for %s; downloading fallbacks for offline support.",
+                pkg.name,
+            )
+            # Prefer wheels that match python version
+            python_matches = [
+                w
+                for w in pkg.release.wheels
+                if any(w.matches_python(pv) for pv in python_versions)
+            ]
+            if python_matches:
+                wanted_wheels = python_matches
+            else:
+                # Last resort: all wheels
+                wanted_wheels = pkg.release.wheels
+
+        for wheel in wanted_wheels:
             dest = files_dir / wheel.filename
             if dest.exists():
                 log.debug("Already have %s", wheel.filename)

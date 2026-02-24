@@ -1,106 +1,165 @@
 """
-Starlette-based HTTP server for the Jabberwocky mirror.
+Standard library HTTP server for the Jabberwocky mirror.
 
 Implements PEP 691 content negotiation:
-  GET /simple/           -> project list  (JSON or HTML)
-  GET /simple/<pkg>/     -> project detail (JSON or HTML)
+  GET /simple/           -> project list  (JSON)
+  GET /simple/<pkg>/     -> project detail (JSON)
   GET /files/<filename>  -> wheel file
 """
 
 from __future__ import annotations
 
+import argparse
+import http.server
 import logging
+import re
+import socketserver
 from pathlib import Path
-
-from starlette.applications import Starlette
-from starlette.requests import Request
-from starlette.responses import FileResponse, Response
-from starlette.routing import Route
+from urllib.parse import unquote
 
 log = logging.getLogger(__name__)
 
 CONTENT_TYPE_JSON = "application/vnd.pypi.simple.v1+json"
-CONTENT_TYPE_HTML = "application/vnd.pypi.simple.v1+html"
-CONTENT_TYPE_LEGACY_HTML = "text/html"
+CONTENT_TYPE_HTML = "text/html"
 
 
-def _wants_json(request: Request) -> bool:
-    """
-    Determine if the client prefers JSON per PEP 691 content negotiation.
-
-    uv sends: Accept: application/vnd.pypi.simple.v1+json, ...
-    """
-    accept = request.headers.get("accept", "*/*")
-    # Quick check: if the JSON content type appears with higher or equal
-    # priority than the HTML types, serve JSON.
-    # For simplicity we default to JSON (it's what uv wants).
-    if CONTENT_TYPE_JSON in accept:
-        return True
-    if "application/vnd.pypi.simple" in accept:
-        return True
-    # Legacy pip / browsers: serve JSON anyway since we only have JSON indexes.
-    return True
+def canonicalize_name(name: str) -> str:
+    # PEP 503 normalization
+    return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def _json_response(data: dict) -> Response:
-    import json
+class MirrorHandler(http.server.BaseHTTPRequestHandler):
+    def __init__(self, mirror_dir: Path, *args, **kwargs):
+        self.mirror_dir = mirror_dir.resolve()
+        self.simple_dir = self.mirror_dir / "simple"
+        self.files_dir = self.mirror_dir / "files"
+        super().__init__(*args, **kwargs)
 
-    return Response(
-        content=json.dumps(data),
-        media_type=CONTENT_TYPE_JSON,
-    )
+    def log_message(self, format, *args):
+        # Use standard logging
+        log.info("%s - - [%s] %s\n" % (self.client_address[0], self.log_date_time_string(), format % args))
 
+    def do_GET(self):
+        path = unquote(self.path).rstrip("/")
 
-def make_app(mirror_dir: Path) -> Starlette:
-    simple_dir = mirror_dir / "simple"
-    files_dir = mirror_dir / "files"
+        # Determine content type preference (for logging mainly, we default to JSON)
+        # accept = self.headers.get("Accept", "*/*")
 
-    async def simple_index(request: Request) -> Response:
-        index_file = simple_dir / "index.json"
+        if path == "/simple":
+            self.serve_simple_index()
+        elif path.startswith("/simple/"):
+            # Project detail
+            project = path[len("/simple/"):]
+            if "/" in project:
+                 self.send_error(404, "Not Found")
+                 return
+            self.serve_project_detail(project)
+        elif path.startswith("/files/"):
+            filename = path[len("/files/"):]
+            self.serve_file(filename)
+        else:
+            self.send_error(404, "Not Found")
+
+    def serve_simple_index(self):
+        index_file = self.simple_dir / "index.json"
         if not index_file.exists():
-            return Response("Mirror not built yet", status_code=503)
-        import json
+            self.send_error(503, "Mirror not built yet")
+            return
 
-        data = json.loads(index_file.read_text())
-        return _json_response(data)
+        try:
+            data = index_file.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", CONTENT_TYPE_JSON)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception as e:
+            log.error(f"Error serving index: {e}")
+            self.send_error(500)
 
-    async def project_detail(request: Request) -> Response:
-        name = request.path_params["project"]
-        # Normalize: replace underscores/dots with hyphens
-        from packaging.utils import canonicalize_name
+    def serve_project_detail(self, project: str):
+        canonical = canonicalize_name(project)
+        index_file = self.simple_dir / canonical / "index.json"
 
-        canonical = canonicalize_name(name)
-        index_file = simple_dir / canonical / "index.json"
         if not index_file.exists():
-            return Response(f"Package {name!r} not found in mirror", status_code=404)
-        import json
+            self.send_error(404, f"Package {project!r} not found in mirror")
+            return
 
-        data = json.loads(index_file.read_text())
-        return _json_response(data)
+        try:
+            data = index_file.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", CONTENT_TYPE_JSON)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception as e:
+            log.error(f"Error serving project detail: {e}")
+            self.send_error(500)
 
-    async def serve_file(request: Request) -> Response:
-        filename = request.path_params["filename"]
-
-        # Wheel-only mirror: reject anything that isn't a .whl file
+    def serve_file(self, filename: str):
         if not filename.endswith(".whl"):
-            return Response(
-                f"{filename!r} is not a wheel file. Jabberwocky is a wheel-only mirror.",
-                status_code=400,
-            )
+             self.send_error(400, "Only wheels are served")
+             return
 
-        # Prevent path traversal — filename must not escape the files directory
-        path = (files_dir / filename).resolve()
-        if not path.is_relative_to(files_dir.resolve()):
-            return Response("Invalid filename", status_code=400)
+        # Security check: path traversal
+        try:
+            path = (self.files_dir / filename).resolve()
+        except Exception:
+             self.send_error(400, "Invalid path")
+             return
+
+        # Ensure path is within files_dir
+        # resolve() handles symlinks, but we should verify base.
+        # Note: on some systems resolve() might need file existence.
+        # But we check strict prefix.
+        if not str(path).startswith(str(self.files_dir.resolve())):
+            self.send_error(400, "Invalid filename")
+            return
 
         if not path.exists():
-            return Response(f"File {filename!r} not found", status_code=404)
-        return FileResponse(path)
+            self.send_error(404, "File not found")
+            return
 
-    routes = [
-        Route("/simple/", simple_index),
-        Route("/simple/{project:str}/", project_detail),
-        Route("/files/{filename:path}", serve_file),
-    ]
+        try:
+            with open(path, "rb") as f:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/octet-stream")
+                fs = path.stat()
+                self.send_header("Content-Length", str(fs.st_size))
+                self.end_headers()
+                import shutil
+                shutil.copyfileobj(f, self.wfile)
+        except Exception as e:
+            log.error(f"Error serving file: {e}")
 
-    return Starlette(routes=routes)
+
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    """Handle requests in a separate thread."""
+    daemon_threads = True
+
+
+def run(mirror_dir: Path, host: str, port: int):
+    # Partial function to pass mirror_dir to handler
+    def handler(*args, **kwargs):
+        return MirrorHandler(mirror_dir, *args, **kwargs)
+
+    server = ThreadedHTTPServer((host, port), handler)
+    print(f"Serving mirror at http://{host}:{port}/simple/")
+    print(f"Configure uv: uv add --index http://{host}:{port}/simple/ <package>")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Serve Jabberwocky mirror")
+    parser.add_argument("--mirror", type=Path, default=Path("mirror"), help="Mirror directory")
+    parser.add_argument("--host", default="0.0.0.0", help="Host interface")
+    parser.add_argument("--port", type=int, default=8080, help="Port")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO)
+    run(args.mirror, args.host, args.port)

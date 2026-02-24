@@ -1,0 +1,72 @@
+name: Windows Offline Mirror Test
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  test-windows-offline:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: "3.12"
+        enable-cache: true
+
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Build Mirror
+      shell: bash
+      run: |
+        # Create wishlist file
+        echo "ipykernel" > wishlist.txt
+        echo "polars" >> wishlist.txt
+
+        uv run jabberwocky build \
+          --wishlist wishlist.txt \
+          --python 3.12 \
+          --platform win_amd64 \
+          --output mirror \
+          --verbose
+
+    - name: Start Server & Install Offline
+      shell: bash
+      run: |
+        # Start server in background using python -m to test stdlib execution
+        uv run python -m jabberwocky.server --mirror mirror --port 8080 &
+        SERVER_PID=$!
+
+        # Wait for server
+        sleep 5
+
+        # Verify server is responsive (tests stdlib HTTP implementation)
+        curl -f http://localhost:8080/simple/ || exit 1
+
+        echo "Testing offline install with uv add..."
+
+        # Create a fresh project for testing install
+        mkdir test-project
+        cd test-project
+        uv init
+
+        # Get absolute URI to mirror for offline install (uv --offline blocks localhost)
+        # We need the full file URI to bypass network restriction while verifying offline capability.
+        # Mirror path is ../mirror/simple relative to test-project
+        MIRROR_URI=$(python -c "import pathlib; print(pathlib.Path('../mirror/simple').resolve().as_uri())")
+
+        # Try to add ipykernel and polars strictly from the mirror
+        # --offline ensures no PyPI access.
+        # --index-url points to local mirror.
+        # This verifies the mirror content is complete for offline usage.
+        uv add --offline --index-url "$MIRROR_URI" ipykernel polars
+
+        INSTALL_EXIT_CODE=$?
+
+        kill $SERVER_PID || true
+        exit $INSTALL_EXIT_CODE
