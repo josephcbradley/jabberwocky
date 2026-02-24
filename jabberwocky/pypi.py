@@ -394,9 +394,6 @@ async def resolve(
                     # uv --offline will fail.
                     dep_needs_wheels = True
 
-                    if not _dep_reachable(req, python_versions, platforms):
-                        continue
-
                     # Pin version if specified in requirement
                     pin = _extract_pin(req)
                     queue.append((req.name, pin, dep_needs_wheels))
