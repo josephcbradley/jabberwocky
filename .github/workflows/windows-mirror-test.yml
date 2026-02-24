@@ -28,7 +28,7 @@ jobs:
         echo "ipykernel" > wishlist.txt
         echo "polars" >> wishlist.txt
 
-        uv run jabberwocky build \
+        uv run python -m jabberwocky build \
           --wishlist wishlist.txt \
           --python 3.12 \
           --platform win_amd64 \
