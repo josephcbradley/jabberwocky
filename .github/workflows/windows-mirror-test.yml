@@ -53,7 +53,7 @@ jobs:
         # Create a fresh project for testing install
         mkdir test-project
         cd test-project
-        uv init
+        uv init --no-workspace
 
         # Get absolute URI to mirror for offline install (uv --offline blocks localhost)
         # We need the full file URI to bypass network restriction while verifying offline capability.

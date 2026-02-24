@@ -25,5 +25,4 @@ dev = [
 [tool.uv.workspace]
 members = [
     "test_offline",
-    "test-install",
 ]
