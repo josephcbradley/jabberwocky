@@ -38,6 +38,9 @@ jobs:
     - name: Start Server & Install Offline
       shell: bash
       run: |
+        # Unset VIRTUAL_ENV to avoid interference with nested project creation
+        unset VIRTUAL_ENV || true
+
         # Start server in background using python -m to test stdlib execution
         uv run python -m jabberwocky.server --mirror mirror --port 8080 &
         SERVER_PID=$!
