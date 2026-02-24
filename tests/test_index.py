@@ -41,6 +41,8 @@ class TestBuildIndex:
         resolved = {"mypackage": _make_resolved("mypackage", "1.0", [])}
         build_index(resolved, tmp_path)
         assert (tmp_path / "simple").is_dir()
+        assert (tmp_path / "simple" / "index.json").exists()
+        assert (tmp_path / "simple" / "index.html").exists()
 
     def test_project_list_contains_all_packages(self, tmp_path: Path):
         resolved = {
@@ -73,6 +75,7 @@ class TestBuildIndex:
         resolved = {"mypackage": _make_resolved("mypackage", "1.0", [])}
         build_index(resolved, tmp_path)
         assert (tmp_path / "simple" / "mypackage" / "index.json").exists()
+        assert (tmp_path / "simple" / "mypackage" / "index.html").exists()
 
     def test_project_name_is_canonicalized(self, tmp_path: Path):
         # Package names with underscores/capitals should be normalized
@@ -167,7 +170,10 @@ class TestBuildIndex:
         build_index(resolved, tmp_path, base_url="")
 
         data = json.loads((tmp_path / "simple" / "pkg" / "index.json").read_text())
-        assert data["files"][0]["url"] == "/files/pkg-1.0-py3-none-any.whl"
+        assert data["files"][0]["url"] == "../../files/pkg-1.0-py3-none-any.whl"
+
+        html_content = (tmp_path / "simple" / "pkg" / "index.html").read_text()
+        assert 'href="../../files/pkg-1.0-py3-none-any.whl' in html_content
 
     def test_empty_resolved_dict(self, tmp_path: Path):
         build_index({}, tmp_path)
