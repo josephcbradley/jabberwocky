@@ -38,6 +38,9 @@ jobs:
     - name: Start Server & Install Offline
       shell: bash
       run: |
+        # Unset VIRTUAL_ENV to avoid interference with nested project creation
+        unset VIRTUAL_ENV || true
+
         # Start server in background using python -m to test stdlib execution
         uv run python -m jabberwocky.server --mirror mirror --port 8080 &
         SERVER_PID=$!
@@ -53,7 +56,7 @@ jobs:
         # Create a fresh project for testing install
         mkdir test-project
         cd test-project
-        uv init
+        uv init --no-workspace
 
         # Get absolute URI to mirror for offline install (uv --offline blocks localhost)
         # We need the full file URI to bypass network restriction while verifying offline capability.

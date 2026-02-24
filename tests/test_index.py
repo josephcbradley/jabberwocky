@@ -167,7 +167,24 @@ class TestBuildIndex:
         build_index(resolved, tmp_path, base_url="")
 
         data = json.loads((tmp_path / "simple" / "pkg" / "index.json").read_text())
-        assert data["files"][0]["url"] == "/files/pkg-1.0-py3-none-any.whl"
+        assert data["files"][0]["url"] == "../../files/pkg-1.0-py3-none-any.whl"
+
+    def test_creates_html_indices(self, tmp_path: Path):
+        wheel = _make_wheel("pkg-1.0-py3-none-any.whl")
+        files_dir = tmp_path / "files"
+        files_dir.mkdir()
+        (files_dir / wheel.filename).write_bytes(b"fake")
+
+        resolved = {"pkg": _make_resolved("pkg", "1.0", [wheel], needs_wheels=True)}
+        build_index(resolved, tmp_path)
+
+        # Check root index.html
+        root_html = (tmp_path / "simple" / "index.html").read_text()
+        assert '<a href="pkg/">pkg</a>' in root_html
+
+        # Check project index.html
+        proj_html = (tmp_path / "simple" / "pkg" / "index.html").read_text()
+        assert f'<a href="../../files/{wheel.filename}' in proj_html
 
     def test_empty_resolved_dict(self, tmp_path: Path):
         build_index({}, tmp_path)
