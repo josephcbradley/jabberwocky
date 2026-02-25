@@ -124,7 +124,10 @@ def _build_file_entry(
             if base_url
             else f"../../files/{wheel.filename}"
         )
-        sha256 = _sha256_file(wheel_path)
+        if wheel.sha256:
+            sha256 = wheel.sha256
+        else:
+            sha256 = _sha256_file(wheel_path)
     elif not needs_wheels:
         # Metadata-only: point directly at PyPI so uv can resolve but won't
         # need to actually download unless it's targeting this platform.
