@@ -13,6 +13,7 @@ import argparse
 import http.server
 import logging
 import re
+import shutil
 import socketserver
 from pathlib import Path
 from urllib.parse import unquote
@@ -130,8 +131,6 @@ class MirrorHandler(http.server.BaseHTTPRequestHandler):
                 fs = path.stat()
                 self.send_header("Content-Length", str(fs.st_size))
                 self.end_headers()
-                import shutil
-
                 shutil.copyfileobj(f, self.wfile)
         except Exception as e:
             log.error(f"Error serving file: {e}")
