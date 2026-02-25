@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
 import re
 from dataclasses import dataclass
@@ -199,30 +200,29 @@ def _eval_marker_for_any_target(
         else:
             sys_platforms.add(p)
 
-    for pyver in python_versions:
+    for pyver, sys_platform in itertools.product(python_versions, sys_platforms):
         major, minor = pyver.split(".")
-        for sys_platform in sys_platforms:
-            env = {
-                "python_version": pyver,
-                "python_full_version": f"{pyver}.0",
-                "sys_platform": sys_platform,
-                "os_name": "nt" if sys_platform == "win32" else "posix",
-                "platform_machine": "",
-                "platform_system": (
-                    "Windows"
-                    if sys_platform == "win32"
-                    else "Darwin"
-                    if sys_platform == "darwin"
-                    else "Linux"
-                ),
-                "implementation_name": "cpython",
-                "extra": "",
-            }
-            try:
-                if marker.evaluate(env):
-                    return True
-            except Exception:
-                return True  # be conservative: include if we can't evaluate
+        env = {
+            "python_version": pyver,
+            "python_full_version": f"{pyver}.0",
+            "sys_platform": sys_platform,
+            "os_name": "nt" if sys_platform == "win32" else "posix",
+            "platform_machine": "",
+            "platform_system": (
+                "Windows"
+                if sys_platform == "win32"
+                else "Darwin"
+                if sys_platform == "darwin"
+                else "Linux"
+            ),
+            "implementation_name": "cpython",
+            "extra": "",
+        }
+        try:
+            if marker.evaluate(env):
+                return True
+        except Exception:
+            return True  # be conservative: include if we can't evaluate
     return False
 
 
