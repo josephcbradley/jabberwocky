@@ -77,7 +77,15 @@ def _write_project_detail(
     files_dir: Path,
     base_url: str,
 ) -> None:
-    project_dir = simple_dir / name
+    # Protect against path traversal (e.g. if canonicalize_name preserves absolute paths)
+    simple_dir = simple_dir.resolve()
+    project_dir = (simple_dir / name).resolve()
+    if not project_dir.is_relative_to(simple_dir):
+        raise ValueError(
+            f"Security violation: Package name '{name}' resolves to '{project_dir}' "
+            f"which is outside '{simple_dir}'"
+        )
+
     project_dir.mkdir(parents=True, exist_ok=True)
 
     files = []

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from jabberwocky.index import build_index
+from jabberwocky.index import build_index, _write_project_detail
 from jabberwocky.pypi import PackageRelease, ResolvedPackage, WheelFile
 
 
@@ -209,3 +209,24 @@ class TestBuildIndex:
         assert len(data["files"]) == 2
         filenames = {f["filename"] for f in data["files"]}
         assert filenames == {"pkg-1.0-any.whl", "pkg-2.0-any.whl"}
+
+    def test_path_traversal_prevention(self, tmp_path: Path):
+        """Ensure that package names resolving outside simple/ are rejected."""
+        simple_dir = tmp_path / "simple"
+        simple_dir.mkdir()
+        files_dir = tmp_path / "files"
+        files_dir.mkdir()
+
+        # Absolute path attack
+        malicious_name = "/tmp/evil_pkg"
+        with pytest.raises(ValueError, match="Security violation"):
+            _write_project_detail(
+                malicious_name, [], simple_dir, files_dir, base_url=""
+            )
+
+        # Relative path attack
+        malicious_name = "../../evil_pkg"
+        with pytest.raises(ValueError, match="Security violation"):
+            _write_project_detail(
+                malicious_name, [], simple_dir, files_dir, base_url=""
+            )
