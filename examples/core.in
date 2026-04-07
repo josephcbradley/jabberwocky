@@ -1,3 +1,5 @@
 polars
 matplotlib
 numpy
+ipykernel
+ipywidgets
