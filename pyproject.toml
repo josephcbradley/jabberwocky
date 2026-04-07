@@ -5,3 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = []
+
+[tool.uv]
+package = true
+
+[project.scripts]
+jabberwocky = "jabberwocky.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["jabberwocky*"]
