@@ -35,7 +35,7 @@ def download_packages(
     python_version: str = "3.12",
 ) -> None:
     if platforms is None:
-        platforms = ["manylinux2014_x86_64", "win_amd64"]
+        platforms = ["manylinux2014_x86_64", "win_amd64", "macosx_15_0_x86_64"]
 
     dest.mkdir(parents=True, exist_ok=True)
 
