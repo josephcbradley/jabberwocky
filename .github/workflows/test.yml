@@ -25,12 +25,8 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Lint with Ruff
-        # Using 'uv run' ensures we use the ruff version in your uv.lock
-        run: uv run ruff check --output-format=github
-
-      - name: Check Formatting with Ruff
-        run: uv run ruff format --check
+      - name: Lint
+        uses: astral-sh/ruff-action@v3
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
