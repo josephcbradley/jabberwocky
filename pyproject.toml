@@ -14,3 +14,8 @@ jabberwocky = "jabberwocky.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["jabberwocky*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
