@@ -2,8 +2,10 @@ from jabberwocky.build_mirror import main as build_main
 from jabberwocky.index import main as index_main
 from pathlib import Path
 
+
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(prog="jabberwocky")
     subparsers = parser.add_subparsers(dest="command", required=True)
 

@@ -45,25 +45,41 @@ def download_packages(
 
     try:
         # pass 1: targeted platform wheels
-        subprocess.run([
-            "pip", "download",
-            "-r", str(tmp_path),
-            "--dest", str(dest),
-            "--python-version", python_version,
-            "--no-deps",
-            *[arg for p in platforms for arg in ("--platform", p)],
-        ], check=False)  # don't fail — some packages may not have wheels for all platforms
+        subprocess.run(
+            [
+                "pip",
+                "download",
+                "-r",
+                str(tmp_path),
+                "--dest",
+                str(dest),
+                "--python-version",
+                python_version,
+                "--no-deps",
+                *[arg for p in platforms for arg in ("--platform", p)],
+            ],
+            check=False,
+        )  # don't fail — some packages may not have wheels for all platforms
 
         # pass 2: no platform constraint, catches darwin-marker packages like appnope
-        result = subprocess.run([
-            "pip", "download",
-            "-r", str(tmp_path),
-            "--dest", str(dest),
-            "--no-deps",
-        ], capture_output=False, check=False)
+        result = subprocess.run(
+            [
+                "pip",
+                "download",
+                "-r",
+                str(tmp_path),
+                "--dest",
+                str(dest),
+                "--no-deps",
+            ],
+            capture_output=False,
+            check=False,
+        )
 
         if result.returncode != 0:
-            print(f"Warning: pass 2 had some download failures (exit {result.returncode}) — continuing")
+            print(
+                f"Warning: pass 2 had some download failures (exit {result.returncode}) — continuing"
+            )
 
     finally:
         tmp_path.unlink()

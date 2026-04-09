@@ -61,14 +61,15 @@ def generate_requirements(
             tmp_dir,
             "--format",
             "requirements.txt",
-            "--no-hashes"
+            "--no-hashes",
         ]
         if python_version:
             cmd_export.extend(["--python", python_version])
 
         result = subprocess.run(cmd_export, capture_output=True, check=True, text=True)
         clean = "\n".join(
-            line for line in result.stdout.splitlines()
+            line
+            for line in result.stdout.splitlines()
             if line.strip() and not line.strip().startswith("#")
         )
         return clean

@@ -36,9 +36,11 @@ def build_pep503_index(mirror_dir: Path) -> None:
 
     print(f"Index built: {len(packages)} packages")
 
+
 def main(args=None) -> None:
     if args is None:
         import argparse
+
         parser = argparse.ArgumentParser(description="Build a PEP 503 index.")
         parser.add_argument("mirror_dir", type=Path)
         args = parser.parse_args()
@@ -47,4 +49,3 @@ def main(args=None) -> None:
 
 if __name__ == "__main__":
     main()
-    
