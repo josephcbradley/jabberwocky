@@ -39,13 +39,13 @@ def test_install_from_mirror():
             # Initialize a new uv project
             subprocess.run(["uv", "init", "--no-workspace"], cwd=tmp_path, check=True)
             
-            # Attempt to install appnope from the local server
+            # Attempt to install ipykernel from the local server
             # We use --index-url to point to our local server and --no-cache to ensure it actually fetches
             index_url = f"http://localhost:{port}/"
             
             result = subprocess.run(
                 [
-                    "uv", "add", "appnope",
+                    "uv", "add", "ipykernel",
                     "--index-url", index_url,
                     "--no-cache"
                 ],
@@ -59,7 +59,7 @@ def test_install_from_mirror():
                 print(f"STDERR: {result.stderr}")
             
             assert result.returncode == 0
-            assert "appnope" in result.stdout or "appnope" in result.stderr
+            assert "ipykernel" in result.stdout or "ipykernel" in result.stderr
             
     finally:
         server_process.terminate()
