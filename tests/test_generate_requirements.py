@@ -81,3 +81,16 @@ def test_generate_requirements_with_invalid_requirements():
             generate_requirements(tmp_path)
     finally:
         tmp_path.unlink()
+
+def test_core_in_includes_appnope():
+    """
+    Test that appnope is included in the dependencies for the core.in set on Darwin.
+    """
+    import sys
+    if sys.platform != "darwin":
+        pytest.skip("appnope is only included on Darwin")
+
+    core_in_path = Path("examples/core.in")
+    content = generate_requirements(core_in_path)
+
+    assert "appnope==" in content
