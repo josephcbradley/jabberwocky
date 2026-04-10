@@ -3,17 +3,13 @@ from pathlib import Path
 
 
 def build_pep503_index(mirror_dir: Path) -> None:
-    print(f"Building index for: {mirror_dir}")
     packages: dict[str, list[Path]] = {}
     for file in mirror_dir.iterdir():
-        if file.is_file():
-            # print(f"Checking file: {file.name}, suffix: {file.suffix}")
-            if file.suffix in (".whl", ".tar.gz", ".zip"):
-                # normalise name per PEP 503
-                name = file.name.split("-")[0]
-                name = name.replace("_", "-").lower()
-                print(f"Found package file: {file.name} -> normalized name: {name}")
-                packages.setdefault(name, []).append(file)
+        if file.is_file() and file.suffix in (".whl", ".tar.gz", ".zip"):
+            # normalise name per PEP 503
+            name = file.name.split("-")[0]
+            name = name.replace("_", "-").lower()
+            packages.setdefault(name, []).append(file)
 
     # root index
     root = mirror_dir / "index.html"
